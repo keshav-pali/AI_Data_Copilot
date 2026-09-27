@@ -781,3 +781,572 @@ backend and parent/main ChatGPT branches.
 ============================================================ END OF AI
 DATA COPILOT SHARED CONTEXT
 ============================================================
+
+============================================================
+AI DATA COPILOT - BACKEND
+============================================================
+
+Backend Status:
+B1 - Express Foundation       [COMPLETED]
+B2 - MongoDB + Mongoose       [COMPLETED]
+B3 - JWT Authentication       [COMPLETED]
+B4 - Dataset Management       [COMPLETED]
+B5 - File Processing          [NEXT]
+B6 - Analytics                [PENDING]
+B7 - AI Copilot               [PENDING]
+B8 - Frontend Integration     [PENDING]
+B9 - Production Hardening     [PENDING]
+
+
+============================================================
+1. BACKEND TECHNOLOGY STACK
+============================================================
+
+Runtime:
+- Node.js
+
+Framework:
+- Express.js
+
+Database:
+- MongoDB Atlas
+
+ODM:
+- Mongoose
+
+Authentication:
+- JWT (JSON Web Token)
+
+Password Security:
+- bcryptjs
+
+Development:
+- Nodemon
+
+Environment Variables:
+- dotenv
+
+API Testing:
+- Postman
+
+
+============================================================
+2. BACKEND FOLDER STRUCTURE
+============================================================
+
+backend/
+│
+├── config/
+│   └── db.js
+│
+├── models/
+│   ├── User.js
+│   ├── Dataset.js
+│   ├── Query.js
+│   └── Analysis.js
+│
+├── controllers/
+│   ├── authController.js
+│   ├── datasetController.js
+│   ├── copilotController.js
+│   └── analyticsController.js
+│
+├── routes/
+│   ├── authRoutes.js
+│   ├── datasetRoutes.js
+│   ├── copilotRoutes.js
+│   └── analyticsRoutes.js
+│
+├── middleware/
+│   ├── authMiddleware.js
+│   ├── errorMiddleware.js
+│   └── uploadMiddleware.js
+│
+├── services/
+│   ├── authService.js
+│   ├── datasetService.js
+│   ├── analysisService.js
+│   ├── llmService.js
+│   └── copilotService.js
+│
+├── utils/
+│   ├── fileParser.js
+│   ├── dataAnalyzer.js
+│   └── validators.js
+│
+├── uploads/
+│
+├── .env
+├── .gitignore
+├── package.json
+├── package-lock.json
+└── server.js
+
+
+============================================================
+3. ENVIRONMENT VARIABLES
+============================================================
+
+The backend uses environment variables through dotenv.
+
+Required variables:
+
+PORT=8000
+
+MONGODB_URI=<MongoDB Atlas connection string>
+
+JWT_SECRET=<secret JWT key>
+
+JWT_EXPIRES_IN=7d
+
+
+IMPORTANT:
+- .env must never be committed to Git.
+- MongoDB credentials must never be exposed publicly.
+- JWT_SECRET must remain private.
+
+
+============================================================
+4. EXPRESS SERVER
+============================================================
+
+Backend server:
+
+http://localhost:8000
+
+Root endpoint:
+
+GET /
+
+Response:
+
+{
+    "success": true,
+    "message": "Welcome to AI Data Copilot API"
+}
+
+
+Health check:
+
+GET /api/health
+
+Response:
+
+{
+    "success": true,
+    "message": "AI Data Copilot backend is running",
+    "timestamp": "..."
+}
+
+
+============================================================
+5. DATABASE
+============================================================
+
+Database:
+MongoDB Atlas
+
+Connection:
+Mongoose
+
+Database connection is implemented in:
+
+config/db.js
+
+The server connects to MongoDB before starting the
+Express server.
+
+Connection flow:
+
+Application Start
+        ↓
+Load Environment Variables
+        ↓
+Connect MongoDB
+        ↓
+Connection Successful
+        ↓
+Start Express Server
+
+
+============================================================
+6. AUTHENTICATION
+============================================================
+
+Authentication uses:
+
+- bcryptjs
+- JSON Web Token (JWT)
+
+Authentication flow:
+
+REGISTER:
+
+Client
+  ↓
+POST /api/auth/register
+  ↓
+Validate input
+  ↓
+Check existing user
+  ↓
+Hash password using bcrypt
+  ↓
+Save user in MongoDB
+  ↓
+Generate JWT
+  ↓
+Return user + token
+
+
+LOGIN:
+
+Client
+  ↓
+POST /api/auth/login
+  ↓
+Find user by email
+  ↓
+Compare password using bcrypt
+  ↓
+Generate JWT
+  ↓
+Return user + token
+
+
+PROTECTED REQUEST:
+
+Client
+  ↓
+Authorization: Bearer <JWT>
+  ↓
+authMiddleware
+  ↓
+Verify JWT
+  ↓
+Extract userId
+  ↓
+Allow request
+
+
+============================================================
+7. AUTHENTICATION APIs
+============================================================
+
+REGISTER
+
+POST /api/auth/register
+
+Request:
+
+{
+    "name": "Keshav Pal",
+    "email": "keshav@example.com",
+    "password": "password123"
+}
+
+
+LOGIN
+
+POST /api/auth/login
+
+Request:
+
+{
+    "email": "keshav@example.com",
+    "password": "password123"
+}
+
+
+CURRENT USER
+
+GET /api/auth/me
+
+Authentication:
+
+Bearer Token required
+
+
+Current authentication APIs have been tested successfully
+using Postman.
+
+
+============================================================
+8. DATASET MANAGEMENT
+============================================================
+
+Dataset APIs are protected using JWT authentication.
+
+Dataset ownership is associated with the authenticated
+user.
+
+Dataset flow:
+
+JWT
+ ↓
+authMiddleware
+ ↓
+Authenticated User ID
+ ↓
+Dataset Service
+ ↓
+MongoDB
+
+
+Current Dataset APIs:
+
+GET /api/datasets
+
+GET /api/datasets/:id
+
+DELETE /api/datasets/:id
+
+
+The dataset query always uses the authenticated user's ID
+to prevent users from accessing another user's datasets.
+
+
+Example:
+
+User A
+  ↓
+Only User A's datasets
+
+User B
+  ↓
+Only User B's datasets
+
+
+============================================================
+9. DATASET MODEL
+============================================================
+
+Dataset model contains:
+
+- user
+- name
+- originalFileName
+- fileType
+- fileSize
+- filePath
+- rowCount
+- columnCount
+- columns
+- status
+- createdAt
+- updatedAt
+
+
+Dataset status values:
+
+processing
+ready
+failed
+
+
+============================================================
+10. CURRENT TESTING
+============================================================
+
+API testing is performed using Postman.
+
+Successfully tested:
+
+[✓] MongoDB connection
+
+[✓] User registration
+
+[✓] Password hashing
+
+[✓] JWT generation
+
+[✓] User login
+
+[✓] JWT verification
+
+[✓] Protected /api/auth/me endpoint
+
+[✓] Protected /api/datasets endpoint
+
+[✓] Dataset ownership filtering
+
+
+Example successful dataset response:
+
+{
+    "success": true,
+    "count": 0,
+    "datasets": []
+}
+
+
+============================================================
+11. SECURITY
+============================================================
+
+Implemented:
+
+- Password hashing with bcrypt
+- JWT authentication
+- Protected routes
+- Dataset ownership verification
+- Environment variables
+- .env excluded from Git
+- Centralized error handling
+
+
+Passwords are never returned in authentication responses.
+
+
+============================================================
+12. GIT WORKFLOW
+============================================================
+
+Backend development is being maintained on:
+
+backend
+
+Current backend milestone commit:
+
+7f9956d
+
+Commit message:
+
+feat: implement backend foundation and authentication
+
+
+Remote branch:
+
+origin/backend
+
+
+Working tree status at this milestone:
+
+Clean
+
+
+============================================================
+13. NEXT DEVELOPMENT PHASE
+============================================================
+
+NEXT:
+
+B5 - File Upload & Data Processing
+
+
+Planned supported file formats:
+
+- CSV
+- JSON
+- XLSX
+- XLS
+
+
+Planned flow:
+
+Postman / Frontend
+        ↓
+POST /api/datasets/upload
+        ↓
+JWT Authentication
+        ↓
+Multer
+        ↓
+File Validation
+        ↓
+File Parser
+        ↓
+Data Analysis
+        ↓
+Dataset Metadata
+        ↓
+MongoDB
+
+
+Planned packages:
+
+- multer
+- csv-parse
+- xlsx
+
+
+============================================================
+14. FUTURE BACKEND PHASES
+============================================================
+
+B5 - File Processing
+B6 - Analytics API
+B7 - AI Copilot
+B8 - Frontend-Backend Integration
+B9 - Production Hardening
+
+
+AI Copilot planned architecture:
+
+Frontend
+   ↓
+POST /api/copilot/query
+   ↓
+Authentication
+   ↓
+Dataset Ownership Check
+   ↓
+Load Dataset
+   ↓
+Analyze User Question
+   ↓
+Data Operations
+   ↓
+Generate Context
+   ↓
+LLM
+   ↓
+Structured Response
+   ↓
+Frontend
+
+
+============================================================
+15. DEVELOPMENT RULES
+============================================================
+
+1. Controllers should remain thin.
+
+2. Business logic should be placed in services.
+
+3. Database operations should use Mongoose models/services.
+
+4. Every protected API must verify JWT authentication.
+
+5. Dataset ownership must always be verified.
+
+6. Never trust userId sent by the frontend.
+
+7. Never store plain-text passwords.
+
+8. Never expose secrets in frontend code.
+
+9. Never commit .env to Git.
+
+10. Test backend APIs with Postman before frontend
+    integration.
+
+11. Complete and test each backend phase before moving
+    to the next phase.
+
+
+============================================================
+BACKEND DEVELOPMENT STATUS
+============================================================
+
+B1  Express Foundation        [✓ COMPLETED]
+B2  MongoDB + Mongoose        [✓ COMPLETED]
+B3  JWT Authentication        [✓ COMPLETED]
+B4  Dataset Management        [✓ COMPLETED]
+B5  File Processing           [→ NEXT]
+B6  Analytics                 [PENDING]
+B7  AI Copilot                [PENDING]
+B8  Frontend Integration      [PENDING]
+B9  Production Hardening      [PENDING]
+
+============================================================
