@@ -9,6 +9,7 @@ import errorMiddleware from "./middleware/errorMiddleware.js";
 import authRoutes from "./routes/authRoutes.js";
 import datasetRoutes from "./routes/datasetRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
+import copilotRoutes from "./routes/copilotRoutes.js";
 
 dotenv.config();
 
@@ -56,11 +57,11 @@ app.get("/api/health", (req, res) => {
 // Authentication
 app.use("/api/auth", authRoutes);
 
-// Dataset Management
 app.use("/api/datasets", datasetRoutes);
 
-// Analytics
 app.use("/api/analytics", analyticsRoutes);
+
+app.use("/api/copilot", copilotRoutes);
 
 // ===============================
 // 404 Route
@@ -100,5 +101,7 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+
+
 
 startServer();
