@@ -3,9 +3,12 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import connectDB from "./config/db.js";
+
 import errorMiddleware from "./middleware/errorMiddleware.js";
+
 import authRoutes from "./routes/authRoutes.js";
 import datasetRoutes from "./routes/datasetRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
 
 dotenv.config();
 
@@ -27,10 +30,6 @@ app.use(express.urlencoded({ extended: true }));
 // Root Route
 // ===============================
 
-app.use("/api/auth", authRoutes);
-
-app.use("/api/datasets", datasetRoutes);
-
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
@@ -50,7 +49,19 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// ===============================
+// API Routes
+// ===============================
+
+// Authentication
 app.use("/api/auth", authRoutes);
+
+// Dataset Management
+app.use("/api/datasets", datasetRoutes);
+
+// Analytics
+app.use("/api/analytics", analyticsRoutes);
+
 // ===============================
 // 404 Route
 // ===============================
@@ -84,7 +95,8 @@ const startServer = async () => {
       console.log(`🌐 http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.error("❌ Server startup failed");
+    console.error("❌ Server startup failed:", error.message);
+
     process.exit(1);
   }
 };
