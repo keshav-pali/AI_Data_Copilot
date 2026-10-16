@@ -31,6 +31,7 @@ export const deleteDataset = async (datasetId, userId) => {
     throw error;
   }
 
+
   return dataset;
 };
 
@@ -60,5 +61,3 @@ export const createDataset = async ({
 
   return dataset;
 };
-
-

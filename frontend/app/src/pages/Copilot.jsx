@@ -1,34 +1,34 @@
-import { useState } from "react";
+
+import { useCallback, useEffect, useState } from "react";
 import ChatMessage from "../components/ChatMessage";
+import apiRequest from "../services/api";
+import { getDatasets } from "../services/datasetService";
 
 function Copilot() {
-
   const [message, setMessage] = useState("");
-
   const [messages, setMessages] = useState([
     {
       id: 1,
       type: "ai",
-      time: "12:02 PM",
+      time: "Just now",
       content: (
         <>
+          <p>Hi! 👋</p>
           <p>
-            Hi Keshav! 👋
+            I'm your AI Data Copilot. Ask a question about
+            your uploaded dataset and I'll query the actual data.
           </p>
-
-          <p>
-            I'm your AI Data Copilot. I can help you
-            understand your datasets, find patterns,
-            generate insights and create visualizations.
-          </p>
-
-          <p>
-            What would you like to know?
-          </p>
+          <p>What would you like to know?</p>
         </>
       ),
     },
   ]);
+
+  const [datasets, setDatasets] = useState([]);
+  const [selectedDatasetId, setSelectedDatasetId] = useState("");
+  const [datasetsLoading, setDatasetsLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [datasetError, setDatasetError] = useState("");
 
   const suggestions = [
     {
@@ -53,148 +53,245 @@ function Copilot() {
     },
   ];
 
-  const sendMessage = (text = message) => {
+  const loadDatasets = useCallback(async () => {
+    setDatasetsLoading(true);
+    setDatasetError("");
 
-    if (!text.trim()) return;
+    try {
+      const response = await getDatasets();
+      const list = response.datasets || response.data?.datasets || [];
 
-    const userMessage = {
-      id: Date.now(),
-      type: "user",
-      time: "Just now",
-      content: <p>{text}</p>,
-    };
+      setDatasets(list);
 
-    setMessages((prev) => [
-      ...prev,
-      userMessage,
+      setSelectedDatasetId((currentId) => {
+        if (list.some((item) => item._id === currentId)) {
+          return currentId;
+        }
+
+        const readyDataset = list.find(
+          (item) => item.status === "ready"
+        );
+
+        return readyDataset?._id || "";
+      });
+    } catch (error) {
+      setDatasetError(error.message || "Failed to load datasets.");
+    } finally {
+      setDatasetsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDatasets();
+  }, [loadDatasets]);
+
+  const sendMessage = async (text = message) => {
+    const question = text.trim();
+
+    if (!question || sending) return;
+
+    if (!selectedDatasetId) {
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: Date.now(),
+          type: "ai",
+          time: "Just now",
+          content: (
+            <p>
+              Please upload a dataset first, then select it
+              from the dataset dropdown.
+            </p>
+          ),
+        },
+      ]);
+      return;
+    }
+
+    const userMessageId = Date.now();
+
+    setMessages((previous) => [
+      ...previous,
+      {
+        id: userMessageId,
+        type: "user",
+        time: "Just now",
+        content: <p>{question}</p>,
+      },
     ]);
 
     setMessage("");
+    setSending(true);
 
-    setTimeout(() => {
+    try {
+      const response = await apiRequest("/copilot/query", {
+        method: "POST",
+        body: JSON.stringify({
+          datasetId: selectedDatasetId,
+          question,
+        }),
+      });
 
-      const aiMessage = {
-        id: Date.now() + 1,
-        type: "ai",
-        time: "Just now",
-        content: (
-          <>
-            <p>
-              I'm analyzing your request...
-            </p>
+      const result = response.queryResult;
+      const sql = response.sqlQuery;
 
-            <div className="mock-ai-result">
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: Date.now() + 1,
+          type: "ai",
+          time: "Just now",
+          content: (
+            <>
+              <p>{response.answer || "No answer was returned."}</p>
 
-              <div className="mock-result-header">
-                <span>✦</span>
-                Analysis Preview
-              </div>
+              {sql && (
+                <details className="mock-ai-result">
+                  <summary className="mock-result-header">
+                    ✦ Generated SQL
+                  </summary>
+                  <pre style={{ whiteSpace: "pre-wrap", overflowX: "auto" }}>
+                    {sql}
+                  </pre>
+                </details>
+              )}
 
-              <div className="mock-result-grid">
+              {result && (
+                <details className="mock-ai-result">
+                  <summary className="mock-result-header">
+                    ▤ Actual query result ({result.rowCountReturned ?? 0} rows)
+                  </summary>
 
-                <div>
-                  <span>Revenue</span>
-                  <strong>$124.8K</strong>
-                </div>
+                  {result.columns?.length > 0 && (
+                    <div style={{ overflowX: "auto" }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            {result.columns.map((column) => (
+                              <th key={column}>{column}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(result.rows || []).map((row, rowIndex) => (
+                            <tr key={rowIndex}>
+                              {row.map((value, columnIndex) => (
+                                <td key={columnIndex}>
+                                  {value == null ? "—" : String(value)}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
-                <div>
-                  <span>Growth</span>
-                  <strong>18.4%</strong>
-                </div>
-
-                <div>
-                  <span>Orders</span>
-                  <strong>2,840</strong>
-                </div>
-
-              </div>
-
-              <p className="mock-result-note">
-                Connect your dataset to generate
-                real-time insights and visualizations.
-              </p>
-
-            </div>
-          </>
-        ),
-      };
-
-      setMessages((prev) => [
-        ...prev,
-        aiMessage,
+                  {result.truncated && (
+                    <p>Showing the first 100 returned rows.</p>
+                  )}
+                </details>
+              )}
+            </>
+          ),
+        },
       ]);
-
-    }, 700);
+    } catch (error) {
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: Date.now() + 1,
+          type: "ai",
+          time: "Just now",
+          content: (
+            <p>
+              I couldn't process that question: {error.message}
+            </p>
+          ),
+        },
+      ]);
+    } finally {
+      setSending(false);
+    }
   };
 
-  const handleKeyDown = (e) => {
-
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       sendMessage();
     }
-
   };
+
+  const selectedDataset = datasets.find(
+    (dataset) => dataset._id === selectedDatasetId
+  );
 
   return (
     <div className="copilot-page">
-
-      {/* ================= TOP BAR ================= */}
-
       <div className="copilot-topbar">
-
         <div className="copilot-title">
-
-          <div className="copilot-main-icon">
-            ✦
-          </div>
-
+          <div className="copilot-main-icon">✦</div>
           <div>
-            <h2>
-              AI Data Copilot
-            </h2>
-
-            <p>
-              Ask questions and explore your data
-            </p>
+            <h2>AI Data Copilot</h2>
+            <p>Ask questions and explore your data</p>
           </div>
-
         </div>
-
 
         <div className="dataset-selector">
-
-          <span className="dataset-small-icon">
-            ▤
-          </span>
-
+          <span className="dataset-small-icon">▤</span>
           <div>
-            <small>
-              DATASET
-            </small>
-
-            <strong>
-              Sales Data
-            </strong>
+            <small>DATASET</small>
+            <select
+              aria-label="Select dataset"
+              value={selectedDatasetId}
+              onChange={(event) =>
+                setSelectedDatasetId(event.target.value)
+              }
+              disabled={datasetsLoading || datasets.length === 0 || sending}
+              style={{
+                display: "block",
+                maxWidth: "190px",
+                background: "transparent",
+                border: "none",
+                fontWeight: 600,
+              }}
+            >
+              <option value="">
+                {datasetsLoading ? "Loading datasets..." : "Select dataset"}
+              </option>
+              {datasets
+                .filter((dataset) => dataset.status === "ready")
+                .map((dataset) => (
+                  <option key={dataset._id} value={dataset._id}>
+                    {dataset.name}
+                  </option>
+                ))}
+            </select>
           </div>
-
-          <span>
-            ▾
-          </span>
-
+          <button
+            type="button"
+            onClick={loadDatasets}
+            title="Refresh datasets"
+            disabled={datasetsLoading || sending}
+          >
+            ↻
+          </button>
         </div>
-
       </div>
 
-
-      {/* ================= CHAT ================= */}
-
       <div className="copilot-chat">
-
         <div className="chat-content">
+          {datasetError && (
+            <p role="alert">Dataset loading failed: {datasetError}</p>
+          )}
+
+          {!datasetsLoading && datasets.length === 0 && !datasetError && (
+            <p>
+              No datasets found. Upload a CSV dataset first from the Upload Data page.
+            </p>
+          )}
 
           {messages.map((item) => (
-
             <ChatMessage
               key={item.id}
               type={item.type}
@@ -202,115 +299,87 @@ function Copilot() {
             >
               {item.content}
             </ChatMessage>
-
           ))}
 
+          {sending && (
+            <ChatMessage type="ai" time="Now">
+              <p>Analyzing your question and querying the dataset...</p>
+            </ChatMessage>
+          )}
         </div>
 
-
-        {/* ================= SUGGESTIONS ================= */}
-
         {messages.length === 1 && (
-
           <div className="suggestions-section">
-
             <div className="suggestions-title">
               <span>✦</span>
               Try asking
             </div>
 
             <div className="suggestions-grid">
-
               {suggestions.map((item) => (
-
                 <button
                   key={item.title}
                   className="suggestion-card"
-                  onClick={() =>
-                    sendMessage(item.text)
-                  }
+                  onClick={() => sendMessage(item.text)}
+                  disabled={sending || !selectedDatasetId}
                 >
-
-                  <div className="suggestion-icon">
-                    {item.icon}
-                  </div>
-
+                  <div className="suggestion-icon">{item.icon}</div>
                   <div>
-
-                    <strong>
-                      {item.title}
-                    </strong>
-
-                    <span>
-                      {item.text}
-                    </span>
-
+                    <strong>{item.title}</strong>
+                    <span>{item.text}</span>
                   </div>
-
-                  <b>
-                    →
-                  </b>
-
+                  <b>→</b>
                 </button>
-
               ))}
-
             </div>
-
           </div>
-
         )}
 
-
-        {/* ================= INPUT ================= */}
-
         <div className="copilot-input-container">
-
           <div className="copilot-input-box">
-
-            <button className="input-action">
+            <button
+              className="input-action"
+              type="button"
+              onClick={loadDatasets}
+              title="Refresh datasets"
+              disabled={sending}
+            >
               +
             </button>
 
             <textarea
               value={message}
-              onChange={(e) =>
-                setMessage(e.target.value)
-              }
+              onChange={(event) => setMessage(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything about your data..."
+              placeholder={
+                selectedDataset
+                  ? `Ask about ${selectedDataset.name}...`
+                  : "Select a dataset to get started..."
+              }
               rows="1"
+              disabled={sending || !selectedDatasetId}
             />
 
             <button
               className={`send-button ${
-                message.trim()
-                  ? "send-active"
-                  : ""
+                message.trim() ? "send-active" : ""
               }`}
               onClick={() => sendMessage()}
+              disabled={sending || !message.trim() || !selectedDatasetId}
+              title="Send question"
             >
-              ↑
+              {sending ? "…" : "↑"}
             </button>
-
           </div>
 
           <div className="input-footer">
-
             <span>
-              <kbd>Enter</kbd> to send
+              <kbd>Enter</kbd> to send · <kbd>Shift + Enter</kbd> for a new line
             </span>
-
-            <span>
-              AI can make mistakes. Verify important information.
-            </span>
-
+            <span>AI can make mistakes. Verify important information.</span>
           </div>
-
         </div>
-
       </div>
-
     </div>
   );
 }

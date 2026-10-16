@@ -5,3 +5,42 @@ node_modules/
 dist/
 .DS_Store
 uploads/
+
+
+# Dependencies
+node_modules/
+agent/.venv/
+.venv/
+venv/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+
+# Uploaded files and generated data
+backend/uploads/
+uploads/
+*.sqlite
+*.db
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# OS/editor files
+.DS_Store
+.vscode/
+.idea/
+
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local datasets
+shri.csv

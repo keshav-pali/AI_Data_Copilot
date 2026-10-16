@@ -1,114 +1,110 @@
-import fs from "fs";
+
+import fs from "node:fs";
+import path from "node:path";
 
 import Dataset from "../models/Dataset.js";
-
-import {
-  parseFile,
-} from "../utils/fileParser.js";
-
-import {
-  analyzeDataset,
-} from "../utils/dataAnalyzer.js";
-
-import {
-  generateCopilotResponse,
-} from "./llmService.js";
-
-const buildDatasetContext = (analytics) => {
-  const {
-    overview,
-    columns,
-    numericStatistics,
-    categoricalStatistics,
-    correlations,
-  } = analytics;
-
-  const usefulCategoricalStatistics = {};
-
-  for (const [column, data] of Object.entries(
-    categoricalStatistics
-  )) {
-    // Avoid sending high-cardinality ID-like columns
-    // to the LLM.
-    if (data.uniqueCount <= 20) {
-      usefulCategoricalStatistics[column] = data;
-    }
-  }
-
-  return JSON.stringify(
-    {
-      overview,
-
-      columns,
-
-      numericStatistics,
-
-      categoricalStatistics:
-        usefulCategoricalStatistics,
-
-      correlations,
-    },
-    null,
-    2
-  );
-};
 
 export const queryCopilot = async ({
   datasetId,
   userId,
   question,
 }) => {
+  // 1. Verify that the dataset belongs to the authenticated user.
   const dataset = await Dataset.findOne({
     _id: datasetId,
     user: userId,
   });
 
   if (!dataset) {
-    const error = new Error(
-      "Dataset not found"
-    );
-
+    const error = new Error("Dataset not found");
     error.statusCode = 404;
     throw error;
   }
 
+  // 2. Ensure that the dataset is ready.
   if (dataset.status !== "ready") {
     const error = new Error(
       "Dataset is not ready for analysis"
     );
-
     error.statusCode = 400;
     throw error;
   }
 
+  // 3. Resolve the stored path from the backend directory.
+  const csvPath = path.resolve(dataset.filePath || "");
+
   if (
     !dataset.filePath ||
-    !fs.existsSync(dataset.filePath)
+    !fs.existsSync(csvPath)
   ) {
     const error = new Error(
       "Dataset file is not available"
     );
-
     error.statusCode = 404;
     throw error;
   }
 
-  const rows = parseFile(
-    dataset.filePath,
-    dataset.originalFileName
-  );
+  // 4. The current Python agent supports CSV only.
+  if (
+    path.extname(dataset.originalFileName || csvPath)
+      .toLowerCase() !== ".csv"
+  ) {
+    const error = new Error(
+      "The AI SQL agent currently supports CSV datasets only"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
 
-  const analytics = analyzeDataset(rows);
+  // 5. Call the Python LangGraph service.
+  const agentUrl =
+    process.env.PYTHON_AGENT_URL ||
+    "http://127.0.0.1:8001";
 
-  const datasetContext = buildDatasetContext(
-    analytics
-  );
+  let response;
 
-  const answer = await generateCopilotResponse({
-    question,
-    datasetContext,
-  });
+  try {
+    response = await fetch(`${agentUrl}/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        question,
+        csv_path: csvPath,
+      }),
+    });
+  } catch (cause) {
+    const error = new Error(
+      "Python AI agent is unavailable. Ensure the agent service is running."
+    );
+    error.statusCode = 502;
+    error.cause = cause;
+    throw error;
+  }
 
+  let agentResult;
+
+  try {
+    agentResult = await response.json();
+  } catch {
+    const error = new Error(
+      "Python AI agent returned an invalid response"
+    );
+    error.statusCode = 502;
+    throw error;
+  }
+
+  if (!response.ok || !agentResult.success) {
+    const error = new Error(
+      agentResult.detail ||
+      "Python AI agent failed to process the question"
+    );
+    error.statusCode = 502;
+    throw error;
+  }
+
+  // 6. Return the result in the existing Copilot response format.
   return {
     dataset: {
       id: dataset._id,
@@ -116,9 +112,9 @@ export const queryCopilot = async ({
       rowCount: dataset.rowCount,
       columnCount: dataset.columnCount,
     },
-
     question,
-
-    answer,
+    answer: agentResult.answer,
+    sqlQuery: agentResult.sqlQuery,
+    queryResult: agentResult.queryResult,
   };
 };

@@ -1,9 +1,60 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import StatCard from "../components/StatCard";
 import DataTable from "../components/DataTable";
 
+import { getDatasets } from "../services/datasetService";
+
 function Dashboard() {
   const navigate = useNavigate();
+
+  const [datasets, setDatasets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadDatasets();
+  }, []);
+
+  const loadDatasets = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await getDatasets();
+
+      setDatasets(response.datasets || []);
+    } catch (err) {
+      console.error("Failed to load datasets:", err);
+
+      setError(
+        err.message || "Failed to load datasets."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const totalDatasets = datasets.length;
+
+  const totalRows = datasets.reduce(
+    (total, dataset) =>
+      total + Number(dataset.rowCount || 0),
+    0
+  );
+
+  const formatRows = (rows) => {
+    if (rows >= 1000000) {
+      return `${(rows / 1000000).toFixed(1)}M`;
+    }
+
+    if (rows >= 1000) {
+      return `${(rows / 1000).toFixed(1)}K`;
+    }
+
+    return rows.toLocaleString();
+  };
 
   return (
     <div className="dashboard">
@@ -39,35 +90,53 @@ function Dashboard() {
       </section>
 
 
+      {/* ================= ERROR ================= */}
+
+      {error && (
+        <div className="upload-error">
+          <span>!</span>
+          {error}
+        </div>
+      )}
+
+
       {/* ================= STATS ================= */}
 
       <section className="stats-grid">
 
         <StatCard
           title="Total Datasets"
-          value="24"
-          change="12.5%"
+          value={
+            loading
+              ? "..."
+              : totalDatasets.toLocaleString()
+          }
+          change="—"
           icon="▤"
         />
 
         <StatCard
           title="Total Rows"
-          value="30.4K"
-          change="8.2%"
+          value={
+            loading
+              ? "..."
+              : formatRows(totalRows)
+          }
+          change="—"
           icon="▥"
         />
 
         <StatCard
           title="AI Queries"
-          value="1,284"
-          change="18.4%"
+          value="0"
+          change="—"
           icon="✦"
         />
 
         <StatCard
           title="Insights Generated"
-          value="356"
-          change="15.7%"
+          value="0"
+          change="—"
           icon="◈"
         />
 
@@ -342,7 +411,10 @@ function Dashboard() {
 
       {/* ================= DATA TABLE ================= */}
 
-      <DataTable />
+      <DataTable
+        datasets={datasets}
+        loading={loading}
+      />
 
     </div>
   );

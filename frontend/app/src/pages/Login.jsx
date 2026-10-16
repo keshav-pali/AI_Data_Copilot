@@ -1,20 +1,39 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-function Login() {
+import { useAuth } from "../context/AuthContext";
 
+function Login() {
   const navigate = useNavigate();
+
+  const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSubmit = (e) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Temporary frontend login
-    navigate("/");
+    setError("");
+    setLoading(true);
 
+    try {
+      await login(email, password);
+
+      navigate("/", {
+        replace: true,
+      });
+    } catch (error) {
+      setError(
+        error.message ||
+          "Invalid email or password."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -23,7 +42,6 @@ function Login() {
       <div className="login-left">
 
         <div className="login-brand">
-
           <div className="logo-icon">
             ✦
           </div>
@@ -31,7 +49,6 @@ function Login() {
           <span>
             AI Data Copilot
           </span>
-
         </div>
 
         <div className="login-content">
@@ -91,6 +108,21 @@ function Login() {
             Sign in to continue to your dashboard.
           </p>
 
+          {error && (
+            <div
+              style={{
+                marginBottom: "16px",
+                padding: "12px",
+                borderRadius: "8px",
+                background: "#fee2e2",
+                color: "#b91c1c",
+                fontSize: "14px",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
 
             <label>
@@ -124,11 +156,8 @@ function Login() {
             <div className="form-options">
 
               <label className="checkbox-label">
-
                 <input type="checkbox" />
-
                 Remember me
-
               </label>
 
               <button
@@ -143,8 +172,11 @@ function Login() {
             <button
               className="login-button"
               type="submit"
+              disabled={loading}
             >
-              Sign in
+              {loading
+                ? "Signing in..."
+                : "Sign in"}
             </button>
 
           </form>

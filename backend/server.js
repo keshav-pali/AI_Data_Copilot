@@ -92,7 +92,6 @@ const startServer = async () => {
       console.log(
         `🚀 AI Data Copilot server running on port ${PORT}`
       );
-
       console.log(`🌐 http://localhost:${PORT}`);
     });
   } catch (error) {
@@ -101,7 +100,6 @@ const startServer = async () => {
     process.exit(1);
   }
 };
-
 
 
 startServer();

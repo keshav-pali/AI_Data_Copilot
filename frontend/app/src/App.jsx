@@ -8,6 +8,7 @@ import {
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import { ThemeProvider } from "./components/ThemeContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -21,95 +22,128 @@ import "./App.css";
 function Layout({ children }) {
   return (
     <div className="app-shell">
-
       <Sidebar />
 
       <div className="main-area">
-
         <Header />
 
         <main className="page-container">
           {children}
         </main>
-
       </div>
-
     </div>
+  );
+}
+
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        Loading...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={<Login />}
+      />
+
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Dashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/copilot"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Copilot />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/upload"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <UploadData />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Analytics />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Settings />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to="/"
+            replace
+          />
+        }
+      />
+    </Routes>
   );
 }
 
 function App() {
   return (
     <ThemeProvider>
-
-      <BrowserRouter>
-
-        <Routes>
-
-          <Route
-            path="/login"
-            element={<Login />}
-          />
-
-          <Route
-            path="/"
-            element={
-              <Layout>
-                <Dashboard />
-              </Layout>
-            }
-          />
-
-          <Route
-            path="/copilot"
-            element={
-              <Layout>
-                <Copilot />
-              </Layout>
-            }
-          />
-
-          <Route
-            path="/upload"
-            element={
-              <Layout>
-                <UploadData />
-              </Layout>
-            }
-          />
-
-          <Route
-            path="/analytics"
-            element={
-              <Layout>
-                <Analytics />
-              </Layout>
-            }
-          />
-
-          <Route
-            path="/settings"
-            element={
-              <Layout>
-                <Settings />
-              </Layout>
-            }
-          />
-
-          <Route
-            path="*"
-            element={
-              <Navigate
-                to="/"
-                replace
-              />
-            }
-          />
-
-        </Routes>
-
-      </BrowserRouter>
-
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

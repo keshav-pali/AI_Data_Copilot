@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { uploadDataset, getDatasets } from "../services/datasetService";
 
 function UploadData() {
   const fileInputRef = useRef(null);
@@ -8,25 +9,10 @@ function UploadData() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const [uploadedFiles, setUploadedFiles] = useState([
-    {
-      id: 1,
-      name: "Sales_Data.csv",
-      type: "CSV",
-      size: "2.4 MB",
-      rows: "12,450",
-      status: "Processed",
-    },
-    {
-      id: 2,
-      name: "Customer_Data.xlsx",
-      type: "XLSX",
-      size: "1.8 MB",
-      rows: "8,921",
-      status: "Processed",
-    },
-  ]);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [isLoadingDatasets, setIsLoadingDatasets] = useState(true);
 
   const allowedTypes = [
     "text/csv",
@@ -41,6 +27,47 @@ function UploadData() {
     ".xlsx",
     ".xls",
   ];
+
+  useEffect(() => {
+    loadDatasets();
+  }, []);
+
+  const loadDatasets = async () => {
+    try {
+      setIsLoadingDatasets(true);
+
+      const response = await getDatasets();
+
+      const datasets = response.datasets || [];
+
+      setUploadedFiles(
+        datasets.map((dataset) => ({
+          id: dataset._id,
+          name:
+            dataset.originalFileName ||
+            dataset.name ||
+            "Unnamed Dataset",
+          type: getFileType(
+            dataset.originalFileName || dataset.name
+          ),
+          size: formatFileSize(dataset.fileSize || 0),
+          rows: formatNumber(dataset.rowCount || 0),
+          status:
+            dataset.status === "ready"
+              ? "Processed"
+              : dataset.status === "failed"
+              ? "Failed"
+              : "Processing",
+        }))
+      );
+    } catch (err) {
+      setError(
+        err.message || "Failed to load your datasets."
+      );
+    } finally {
+      setIsLoadingDatasets(false);
+    }
+  };
 
   const validateFile = (file) => {
     if (!file) return false;
@@ -68,6 +95,8 @@ function UploadData() {
     }
 
     setError("");
+    setSuccess("");
+
     return true;
   };
 
@@ -76,6 +105,8 @@ function UploadData() {
 
     setSelectedFile(file);
     setUploadProgress(0);
+    setError("");
+    setSuccess("");
   };
 
   const handleInputChange = (e) => {
@@ -99,6 +130,8 @@ function UploadData() {
   };
 
   const formatFileSize = (bytes) => {
+    if (!bytes) return "0 KB";
+
     if (bytes < 1024 * 1024) {
       return `${Math.round(bytes / 1024)} KB`;
     }
@@ -106,59 +139,104 @@ function UploadData() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const getFileType = (fileName) => {
-    return fileName
-      .substring(fileName.lastIndexOf(".") + 1)
-      .toUpperCase();
+  const formatNumber = (number) => {
+    return Number(number || 0).toLocaleString();
   };
 
-  const simulateUpload = () => {
+  const getFileType = (fileName = "") => {
+    const extension = fileName
+      .substring(fileName.lastIndexOf(".") + 1)
+      .toUpperCase();
+
+    return extension || "FILE";
+  };
+
+  const handleUpload = async () => {
     if (!selectedFile) return;
 
-    setIsUploading(true);
-    setUploadProgress(0);
+    try {
+      setIsUploading(true);
+      setUploadProgress(10);
+      setError("");
+      setSuccess("");
 
-    let progress = 0;
+      // UI progress while request is being processed.
+      setUploadProgress(30);
 
-    const interval = setInterval(() => {
-      progress += 10;
+      const response = await uploadDataset(selectedFile);
 
-      setUploadProgress(progress);
+      setUploadProgress(80);
 
-      if (progress >= 100) {
-        clearInterval(interval);
+      const dataset = response.dataset;
 
-        setTimeout(() => {
-          const newFile = {
-            id: Date.now(),
-            name: selectedFile.name,
-            type: getFileType(selectedFile.name),
-            size: formatFileSize(selectedFile.size),
-            rows: "Analyzing...",
-            status: "Processing",
-          };
-
-          setUploadedFiles((prev) => [
-            newFile,
-            ...prev,
-          ]);
-
-          setIsUploading(false);
-          setSelectedFile(null);
-          setUploadProgress(0);
-
-          if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-          }
-        }, 400);
+      if (!dataset) {
+        throw new Error(
+          "Upload succeeded but dataset information was not returned."
+        );
       }
-    }, 120);
+
+      const newFile = {
+        id: dataset._id,
+        name:
+          dataset.originalFileName ||
+          dataset.name ||
+          selectedFile.name,
+        type: getFileType(
+          dataset.originalFileName ||
+          selectedFile.name
+        ),
+        size: formatFileSize(
+          dataset.fileSize || selectedFile.size
+        ),
+        rows: formatNumber(dataset.rowCount || 0),
+        status:
+          dataset.status === "ready"
+            ? "Processed"
+            : "Processing",
+      };
+
+      setUploadedFiles((prev) => [
+        newFile,
+        ...prev.filter((file) => file.id !== newFile.id),
+      ]);
+
+      setUploadProgress(100);
+
+      setSuccess(
+        `${selectedFile.name} uploaded successfully.`
+      );
+
+      setSelectedFile(null);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      // Refresh from backend to keep UI synchronized.
+      await loadDatasets();
+
+      setTimeout(() => {
+        setUploadProgress(0);
+      }, 500);
+    } catch (err) {
+      setError(
+        err.message ||
+          "Something went wrong while uploading the dataset."
+      );
+
+      setUploadProgress(0);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const removeSelectedFile = () => {
+    if (isUploading) return;
+
     setSelectedFile(null);
     setUploadProgress(0);
     setError("");
+    setSuccess("");
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -188,7 +266,6 @@ function UploadData() {
         </div>
 
         <div className="upload-limit">
-
           <span>
             STORAGE
           </span>
@@ -200,7 +277,6 @@ function UploadData() {
           <div className="storage-bar">
             <span style={{ width: "24%" }}></span>
           </div>
-
         </div>
 
       </div>
@@ -256,23 +332,10 @@ function UploadData() {
           </button>
 
           <div className="upload-supported">
-
-            <span>
-              CSV
-            </span>
-
-            <span>
-              XLSX
-            </span>
-
-            <span>
-              XLS
-            </span>
-
-            <span>
-              JSON
-            </span>
-
+            <span>CSV</span>
+            <span>XLSX</span>
+            <span>XLS</span>
+            <span>JSON</span>
           </div>
 
           <small>
@@ -363,7 +426,7 @@ function UploadData() {
 
               <button
                 className="start-upload-button"
-                onClick={simulateUpload}
+                onClick={handleUpload}
               >
                 <span>↑</span>
                 Upload dataset
@@ -381,12 +444,20 @@ function UploadData() {
       {/* ================= ERROR ================= */}
 
       {error && (
-
         <div className="upload-error">
           <span>!</span>
           {error}
         </div>
+      )}
 
+
+      {/* ================= SUCCESS ================= */}
+
+      {success && (
+        <div className="upload-success">
+          <span>✓</span>
+          {success}
+        </div>
       )}
 
 
@@ -509,60 +580,78 @@ function UploadData() {
 
         <div className="uploaded-datasets">
 
-          {uploadedFiles.map((file) => (
+          {isLoadingDatasets ? (
 
-            <div
-              className="uploaded-file-card"
-              key={file.id}
-            >
-
-              <div className="uploaded-file-icon">
-                ▤
-              </div>
-
-              <div className="uploaded-file-info">
-
-                <strong>
-                  {file.name}
-                </strong>
-
-                <span>
-                  {file.type}
-                  {" • "}
-                  {file.size}
-                </span>
-
-              </div>
-
-              <div className="uploaded-file-rows">
-
-                <small>
-                  ROWS
-                </small>
-
-                <span>
-                  {file.rows}
-                </span>
-
-              </div>
-
-              <span
-                className={`dataset-status ${
-                  file.status === "Processed"
-                    ? "processed"
-                    : "processing"
-                }`}
-              >
-                ● {file.status}
-              </span>
-
-              <button className="dataset-more">
-                ⋮
-              </button>
-
+            <div className="dataset-loading">
+              Loading datasets...
             </div>
 
-          ))}
+          ) : uploadedFiles.length === 0 ? (
+
+            <div className="dataset-loading">
+              No datasets uploaded yet.
+            </div>
+
+          ) : (
+
+            uploadedFiles.map((file) => (
+
+              <div
+                className="uploaded-file-card"
+                key={file.id}
+              >
+
+                <div className="uploaded-file-icon">
+                  ▤
+                </div>
+
+                <div className="uploaded-file-info">
+
+                  <strong>
+                    {file.name}
+                  </strong>
+
+                  <span>
+                    {file.type}
+                    {" • "}
+                    {file.size}
+                  </span>
+
+                </div>
+
+                <div className="uploaded-file-rows">
+
+                  <small>
+                    ROWS
+                  </small>
+
+                  <span>
+                    {file.rows}
+                  </span>
+
+                </div>
+
+                <span
+                  className={`dataset-status ${
+                    file.status === "Processed"
+                      ? "processed"
+                      : file.status === "Failed"
+                      ? "failed"
+                      : "processing"
+                  }`}
+                >
+                  ● {file.status}
+                </span>
+
+                <button className="dataset-more">
+                  ⋮
+                </button>
+
+              </div>
+
+            ))
+
+          )}
 
         </div>
 
